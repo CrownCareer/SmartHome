@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Home | Elite Controller</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+        
+        :root { --bg: #0b0f1a; --card: #161b2c; --accent: #38bdf8; --green: #10b981; --red: #ef4444; --text: #f1f5f9; --light: #fbbf24; }
+        
+        body { font-family: 'Poppins', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        .container { max-width: 1100px; margin: 0 auto; position: relative; }
+        
+        /* লগইন স্ক্রিন */
+        #login-screen { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 10000; }
+        .login-card { background: var(--card); padding: 40px; border-radius: 28px; border: 1px solid rgba(56, 189, 248, 0.2); width: 90%; max-width: 380px; text-align: center; }
+        .login-card input { width: 100%; padding: 14px; margin-bottom: 15px; border-radius: 12px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; outline: none; }
+        .login-btn { width: 100%; padding: 14px; background: var(--accent); border: none; border-radius: 12px; color: var(--bg); font-weight: 700; cursor: pointer; }
+
+        /* মেইন কন্টেন্ট */
+        #main-content { display: none; }
+        header { text-align: center; margin-bottom: 30px; padding-top: 40px; }
+        h1 { color: var(--accent); margin: 0; }
+        
+        /* লগ আউট বাটন */
+        .logout-btn { position: absolute; top: 10px; right: 0; padding: 8px 15px; background: rgba(239, 68, 68, 0.1); color: var(--red); border: 1px solid var(--red); border-radius: 10px; cursor: pointer; font-size: 11px; font-weight: 600; z-index: 100; transition: 0.3s; }
+        .logout-btn:hover { background: var(--red); color: white; }
+
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 20px; }
+        .card { background: var(--card); border-radius: 24px; padding: 20px; border: 1px solid rgba(255,255,255,0.05); position: relative; }
+        .card.active { border-color: var(--accent); box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+
+        .card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+        .dev-info { display: flex; align-items: center; gap: 15px; }
+        
+        /* আইকন অ্যানিমেশন */
+        .icon { font-size: 34px; opacity: 0.3; transition: 0.4s; }
+        .active .icon { opacity: 1; }
+        .active .light-icon { color: var(--light); filter: drop-shadow(0 0 12px var(--light)); }
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .active .fan-icon { animation: rotate 1s linear infinite; color: var(--accent); display: inline-block; }
+        .active .tv-icon { color: #8b5cf6; filter: drop-shadow(0 0 8px #8b5cf6); }
+
+        /* সুইচ */
+        .switch { position: relative; width: 50px; height: 26px; cursor: pointer; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; inset: 0; background: #2d364d; transition: 0.4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 4px; bottom: 4px; background: white; transition: 0.4s; border-radius: 50%; }
+        input:checked + .slider { background: var(--green); }
+        input:checked + .slider:before { transform: translateX(24px); }
+
+        /* সিডিউল ঘর ফিক্সড */
+        .sched-wrap { background: rgba(0, 0, 0, 0.2); border-radius: 18px; padding: 15px; }
+        .sched-title { font-size: 10px; color: #64748b; text-transform: uppercase; margin-bottom: 12px; display: block; font-weight: 600; }
+        .time-row { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 15px; }
+        .time-box { background: #1c2336; border: 1px solid #334155; padding: 5px 8px; border-radius: 10px; display: flex; align-items: center; gap: 2px; }
+        .t-num { width: 22px; background: transparent; border: none; color: white; font-size: 13px; text-align: center; outline: none; }
+        .t-ampm { background: #2d364d; border: none; color: var(--accent); font-size: 10px; font-weight: bold; border-radius: 4px; outline: none; cursor: pointer; }
+        
+        .save-btn { width: 100%; padding: 11px; background: transparent; border: 1px solid var(--accent); color: var(--accent); border-radius: 12px; font-weight: 600; cursor: pointer; font-size: 12px; transition: 0.3s; }
+        .save-btn:hover { background: var(--accent); color: var(--bg); }
+        .save-btn.success { background: var(--green); border-color: var(--green); color: white; }
+    </style>
+</head>
+<body>
+
+<div id="login-screen">
+    <div class="login-card">
+        <h2>🔒 Smart Home</h2>
+        <input type="text" id="user" placeholder="Username">
+        <input type="password" id="pass" placeholder="Password">
+        <button class="login-btn" onclick="checkLogin()">Login</button>
+        <p id="err" style="color:var(--red); font-size:12px; margin-top:10px; display:none;">Invalid credentials</p>
+    </div>
+</div>
+
+<div id="main-content">
+    <div class="container">
+        <button class="logout-btn" onclick="location.reload()">LOG OUT</button>
+        <header>
+            <h1>ELITE HOME</h1>
+            <p style="color: #64748b; font-size: 13px;">Secure Control Dashboard</p>
+        </header>
+        <div class="grid" id="main-grid"></div>
+    </div>
+</div>
+
+<script>
+    function checkLogin() {
+        const u = document.getElementById('user').value;
+        const p = document.getElementById('pass').value;
+        if(u === "admin" && p === "1234") {
+            document.getElementById('login-screen').style.display = "none";
+            document.getElementById('main-content').style.display = "block";
+            initApp();
+        } else {
+            document.getElementById('err').style.display = "block";
+        }
+    }
+
+    function initApp() {
+        const firebaseConfig = { databaseURL: "https://mysmarthouse-9f280-default-rtdb.firebaseio.com" };
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const devices = [
+            { id: 'e1', name: 'Eastern Light', icon: '💡', type: 'light' },
+            { id: 'e2', name: 'Eastern Fan', icon: '⚙️', type: 'fan' },
+            { id: 'w1', name: 'Western Light', icon: '💡', type: 'light' },
+            { id: 'w2', name: 'Western Fan', icon: '⚙️', type: 'fan' },
+            { id: 'w3', name: 'Western TV', icon: '📺', type: 'tv' },
+            { id: 's1', name: 'Farm Area', icon: '🐄', type: 'light' },
+            { id: 's2', name: 'Kitchen', icon: '🍳', type: 'light' }
+        ];
+
+        const grid = document.getElementById('main-grid');
+        grid.innerHTML = "";
+
+        devices.forEach(dev => {
+            const iconType = dev.type === 'light' ? 'light-icon' : dev.type === 'fan' ? 'fan-icon' : 'tv-icon';
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.id = `card-${dev.id}`;
+            card.innerHTML = `
+                <div class="card-top">
+                    <div class="dev-info">
+                        <span class="icon ${iconType}">${dev.icon}</span>
+                        <span class="name">${dev.name}</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="tog-${dev.id}" onchange="toggle('${dev.id}')">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="sched-wrap">
+                    <span class="sched-title">Auto Schedule</span>
+                    <div class="time-row">
+                        <div class="time-box">
+                            <input id="onh-${dev.id}" class="t-num" value="10" maxlength="2">:<input id="onm-${dev.id}" class="t-num" value="00" maxlength="2">
+                            <select id="onp-${dev.id}" class="t-ampm"><option>AM</option><option selected>PM</option></select>
+                        </div>
+                        <span style="color:#475569; font-size:10px;">➔</span>
+                        <div class="time-box">
+                            <input id="ofh-${dev.id}" class="t-num" value="06" maxlength="2">:<input id="ofm-${dev.id}" class="t-num" value="00" maxlength="2">
+                            <select id="ofp-${dev.id}" class="t-ampm"><option selected>AM</option><option>PM</option></select>
+                        </div>
+                    </div>
+                    <button id="btn-${dev.id}" class="save-btn" onclick="save('${dev.id}')">Apply Schedule</button>
+                </div>
+            `;
+            grid.appendChild(card);
+
+            db.ref('status/' + dev.id).on('value', (s) => {
+                const val = s.val() === "true";
+                const check = document.getElementById(`tog-${dev.id}`);
+                if(check) {
+                    check.checked = val;
+                    val ? card.classList.add('active') : card.classList.remove('active');
+                }
+            });
+
+            db.ref('schedules/' + dev.id).on('value', (s) => {
+                const data = s.val();
+                if(data && document.getElementById(`onh-${dev.id}`)) {
+                    const pOn = data.on.split(/[: ]/);
+                    const pOff = data.off.split(/[: ]/);
+                    document.getElementById(`onh-${dev.id}`).value=pOn[0]; document.getElementById(`onm-${dev.id}`).value=pOn[1]; document.getElementById(`onp-${dev.id}`).value=pOn[2];
+                    document.getElementById(`ofh-${dev.id}`).value=pOff[0]; document.getElementById(`ofm-${dev.id}`).value=pOff[1]; document.getElementById(`ofp-${dev.id}`).value=pOff[2];
+                }
+            });
+        });
+
+        window.toggle = (id) => {
+            const state = document.getElementById(`tog-${id}`).checked;
+            db.ref('status/' + id).set(state ? "true" : "false");
+        };
+
+        window.save = (id) => {
+            const on = document.getElementById(`onh-${id}`).value.padStart(2,'0') + ":" + document.getElementById(`onm-${id}`).value.padStart(2,'0') + " " + document.getElementById(`onp-${id}`).value;
+            const off = document.getElementById(`ofh-${id}`).value.padStart(2,'0') + ":" + document.getElementById(`ofm-${id}`).value.padStart(2,'0') + " " + document.getElementById(`ofp-${id}`).value;
+            db.ref('schedules/' + id).set({ on: on, off: off }).then(() => {
+                const btn = document.getElementById(`btn-${id}`);
+                btn.innerText = "✓ Saved"; btn.classList.add('success');
+                setTimeout(() => { btn.innerText = "Apply Schedule"; btn.classList.remove('success'); }, 2000);
+            });
+        };
+    }
+</script>
+
+</body>
+</html>
